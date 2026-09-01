@@ -1,0 +1,14 @@
+.venv/
+.venv_broken_*/
+__pycache__/
+*.py[cod]
+.build/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
+supabase/.env.local
+*.log
+backups/
+새 폴더/

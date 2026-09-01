@@ -1,0 +1,6 @@
+# Reproducible Windows/Python 3.12 environment. OpenCV 4.14 showed unstable
+# UVC camera output on the target PC, so keep the known-stable 4.10 wheel.
+numpy==1.26.4
+opencv-python==4.10.0.84
+Pillow==11.3.0
+pyserial==3.5

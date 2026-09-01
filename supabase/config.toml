@@ -1,0 +1,4 @@
+project_id = "analog-flow-guard"
+
+[functions.ingest-flow]
+verify_jwt = false

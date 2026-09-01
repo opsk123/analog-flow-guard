@@ -1,0 +1,87 @@
+{
+  "camera": {
+    "index": 0,
+    "width": 1280,
+    "height": 720,
+    "fps": 30.0,
+    "use_mjpeg": true,
+    "buffer_size": 1,
+    "autofocus": true,
+    "focus": null,
+    "auto_exposure": true,
+    "exposure": null
+  },
+  "gauge": {
+    "roi": null,
+    "center": null,
+    "radius": null,
+    "perspective_points": [
+      [
+        543.0,
+        485.0
+      ],
+      [
+        628.0,
+        581.0
+      ],
+      [
+        541.0,
+        665.0
+      ],
+      [
+        452.0,
+        563.0
+      ]
+    ],
+    "rectified_size": 480,
+    "rectified_padding_ratio": 0.06
+  },
+  "detector": {
+    "radial_min_ratio": 0.2,
+    "radial_max_ratio": 0.65,
+    "angle_step_deg": 1.0,
+    "line_half_width_px": 2,
+    "confidence_threshold": 1.8,
+    "smoothing_window": 10,
+    "continuity_weight": 0.18,
+    "polar_mode": true,
+    "minimum_image_quality": 18.0
+  },
+  "calibration": {
+    "unit": "L/min",
+    "direction": "clockwise",
+    "points": [
+      {
+        "angle_deg": 140.1,
+        "flow": 0.0
+      },
+      {
+        "angle_deg": 207.0,
+        "flow": 0.5
+      }
+    ]
+  },
+  "alarm": {
+    "low_flow_threshold": 0.15,
+    "hysteresis": 0.1,
+    "trigger_duration_sec": 1.0,
+    "detection_error_timeout_sec": 1.0
+  },
+  "arduino": {
+    "enabled": true,
+    "port": "COM5",
+    "baudrate": 115200,
+    "heartbeat_sec": 2.0,
+    "reconnect_sec": 3.0,
+    "connection_settle_sec": 2.0
+  },
+  "remote": {
+    "enabled": true,
+    "function_url": "https://ygnynrpcismszflhysqr.supabase.co/functions/v1/ingest-flow",
+    "device_id": "FLOW-01",
+    "token_env_var": "FLOW_DEVICE_TOKEN",
+    "upload_interval_sec": 60.0,
+    "retry_interval_sec": 300.0,
+    "request_timeout_sec": 15.0
+  }
+}
