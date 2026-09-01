@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Flow Guard Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
   <main class="shell">
@@ -21,7 +21,8 @@
       <article class="card current-card"><p class="label">현재 유량</p><div class="current-reading"><strong id="current-flow">--</strong><span>L/min</span></div><p id="reading-status" class="reading-status">데이터를 기다리고 있습니다.</p></article>
       <article class="card"><p class="label">저유량 기준</p><strong id="threshold-value" class="secondary-value">-- L/min</strong></article>
       <article class="card"><p class="label">마지막 측정</p><strong id="last-measured" class="secondary-value">--</strong><p id="last-age" class="muted">--</p></article>
-      <article class="card"><p class="label">보고 주기</p><strong id="report-interval" class="secondary-value">--</strong><p class="muted">설정값 기준</p></article>
+      <article class="card"><p class="label">서버 수신</p><strong id="last-received" class="secondary-value">--</strong><p id="ingest-delay" class="muted">전송 지연 --</p></article>
+      <article class="card"><p class="label">보고 주기</p><strong id="report-interval" class="secondary-value">--</strong><p id="next-expected" class="muted">다음 측정 예상 --</p></article>
     </section>
     <section class="card chart-card">
       <div class="section-heading"><div><p class="label">최근 추이</p><h2>최근 60회 측정</h2></div><button id="refresh-button" type="button">새로고침</button></div>
@@ -34,6 +35,6 @@
     <p id="error-detail" class="error-detail" hidden></p>
   </main>
   <script src="config.js?v=1"></script>
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
