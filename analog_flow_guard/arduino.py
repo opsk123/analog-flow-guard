@@ -18,6 +18,29 @@ class ArduinoAlarmOutput:
         self.error: str | None = None
         self.connected_at: float | None = None
 
+    def _open_serial(self, serial_module: Any) -> Any:
+        """Open the UART without pulsing the ESP32 auto-reset control lines."""
+        connection = serial_module.Serial()
+        connection.port = self.config.port
+        connection.baudrate = self.config.baudrate
+        connection.timeout = 0.2
+        connection.write_timeout = 0.2
+
+        # CP210x maps DTR/RTS to GPIO0/EN on common ESP32 dev boards.  Letting
+        # pySerial assert its defaults while opening the port can repeatedly
+        # reset (or enter the bootloader on) the board during reconnects.
+        connection.dtr = False
+        connection.rts = False
+        try:
+            connection.open()
+        except Exception:
+            try:
+                connection.close()
+            except Exception:
+                pass
+            raise
+        return connection
+
     def _connect(self, now: float) -> bool:
         if not self.config.enabled:
             self.error = "Arduino output disabled"
@@ -30,7 +53,10 @@ class ArduinoAlarmOutput:
         try:
             import serial
 
-            self.serial = serial.Serial(self.config.port, self.config.baudrate, timeout=0.2)
+            # A Bluetooth or disconnected virtual COM port can accept an open
+            # call and then block writes indefinitely. Never let hardware I/O
+            # hold the Tk event loop forever.
+            self.serial = self._open_serial(serial)
             self.error = None
             self.last_state = None
             self.connected_at = now

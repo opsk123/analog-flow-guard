@@ -18,6 +18,19 @@ function safeEqual(left: string, right: string): boolean {
   return difference === 0;
 }
 
+function formatKst(timestamp: number): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method !== "POST") {
     return json(405, { ok: false, error: "method_not_allowed" });
@@ -94,6 +107,8 @@ Deno.serve(async (request: Request) => {
   const recoveryMargin = Number(Deno.env.get("FLOW_RECOVERY_MARGIN_LPM") ?? "0.05");
   const lowThreshold = Number.isFinite(thresholdValue) ? thresholdValue : 0.15;
   const recoveryThreshold = lowThreshold + (Number.isFinite(recoveryMargin) ? recoveryMargin : 0.05);
+  const deviceDisplayName = (Deno.env.get("FLOW_DEVICE_DISPLAY_NAME") ?? deviceId).trim() || deviceId;
+  const deviceLocation = (Deno.env.get("FLOW_DEVICE_LOCATION") ?? "미설정").trim() || "미설정";
   const encodedDeviceId = encodeURIComponent(deviceId);
 
   const stateResponse = await fetch(
@@ -156,9 +171,18 @@ Deno.serve(async (request: Request) => {
       return json(500, { ok: false, error: "invalid_slack_webhook_url" });
     }
     const isLow = pendingEvent === "LOW_FLOW";
-    const slackText = isLow
-      ? `🚨 [${deviceId}] 저유량 문제: ${flowRate.toFixed(3)} L/min (기준 ≤ ${lowThreshold.toFixed(3)} L/min)`
-      : `✅ [${deviceId}] 유량 정상 복귀: ${flowRate.toFixed(3)} L/min (복귀 기준 ≥ ${recoveryThreshold.toFixed(3)} L/min)`;
+    const title = isLow ? "🚨 저유량 감지" : "✅ 유량 정상 복구";
+    const criterion = isLow
+      ? `${lowThreshold.toFixed(3)} L/min 이하`
+      : `${recoveryThreshold.toFixed(3)} L/min 이상`;
+    const slackText = [
+      title,
+      `장치: ${deviceDisplayName} (${deviceId})`,
+      `위치: ${deviceLocation}`,
+      `측정 유량: ${flowRate.toFixed(3)} L/min`,
+      `${isLow ? "저유량" : "복구"} 기준: ${criterion}`,
+      `측정 시각: ${formatKst(measuredTimestamp)} KST`,
+    ].join("\n");
     const slackResponse = await fetch(slackWebhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },

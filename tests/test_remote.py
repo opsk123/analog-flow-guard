@@ -90,6 +90,7 @@ class RemoteFlowUploaderTests(unittest.TestCase):
 
     def test_missing_token_does_not_start_request(self) -> None:
         uploader = self.make_uploader(token="")
+        self.assertIn("FLOW_DEVICE_TOKEN", uploader.status)
         self.assertFalse(uploader.observe(0.2))
         self.assertIn("FLOW_DEVICE_TOKEN", uploader.status)
         self.assertEqual(self.calls, [])

@@ -14,13 +14,18 @@ class Esp32SketchTests(unittest.TestCase):
             ROOT / "esp32" / "esp32_2_battery_display" / "esp32_2_battery_display.ino"
         ).read_text(encoding="utf-8")
 
-    def test_receiver_controls_alarm_led_and_buzzer(self):
+    def test_receiver_displays_low_gas_on_1602_lcd_without_led_or_buzzer(self):
         receiver = self.receiver
         config = (ROOT / "esp32" / "esp32_2_battery_display" / "config.h").read_text(encoding="utf-8")
-        self.assertIn("ALARM_LED_PIN", config)
-        self.assertIn("BUZZER_PIN", config)
-        self.assertIn("void setAlarmOutputs", receiver)
-        self.assertIn("receivedState != DeviceState::Normal", receiver)
+        self.assertIn("LCD_SDA_PIN", config)
+        self.assertIn("LCD_SCL_PIN", config)
+        self.assertIn("LCD_I2C_ADDRESS = 0x3F", config)
+        self.assertIn("LiquidCrystal_I2C", receiver)
+        self.assertIn('writeLine(0, "GAS STATUS")', receiver)
+        self.assertIn('writeLine(1, "LOW")', receiver)
+        self.assertNotIn("ALARM_LED_PIN", config)
+        self.assertNotIn("BUZZER_PIN", config)
+        self.assertNotIn("setAlarmOutputs", receiver)
 
     def test_sender_and_receiver_use_same_radio_channel(self):
         sender = (ROOT / "esp32" / "esp32_1_pc_led_sender" / "config.h").read_text(encoding="utf-8")
@@ -38,9 +43,9 @@ class Esp32SketchTests(unittest.TestCase):
         self.assertIn("PC_COMMAND_TIMEOUT_MS", self.sender)
         self.assertIn("DeviceState::Problem", self.sender)
         self.assertIn("RADIO_TIMEOUT_MS", self.receiver)
-        self.assertIn("radioTimedOut || receivedState != DeviceState::Normal", self.receiver)
+        self.assertIn("DisplayState::RadioLinkError", self.receiver)
+        self.assertIn("DisplayState::GasLow", self.receiver)
         self.assertIn("DeviceState::PcLinkError", self.receiver)
-        self.assertIn("alarmOutputOn != alarmActive", self.receiver)
         self.assertNotIn("ALARM_BLINK_INTERVAL_MS", self.receiver)
         self.assertNotIn("lastAlarmToggleMs", self.receiver)
 

@@ -36,6 +36,8 @@ class FlowGuardApp:
         self.capture_thread: threading.Thread | None = None
         self.capture_stop = threading.Event()
         self.capture_lock = threading.Lock()
+        self.camera_open = False
+        self.camera_error: str | None = None
         self.captured_frame = None
         self.captured_frame_number = 0
         self.processed_frame_number = 0
@@ -64,7 +66,12 @@ class FlowGuardApp:
 
     def _build_ui(self) -> None:
         self.root.title("Analog Flow Guard")
-        self.root.minsize(1650, 1230)
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = min(1500, max(1050, screen_width - 80))
+        window_height = min(950, max(700, screen_height - 100))
+        self.root.geometry(f"{window_width}x{window_height}")
+        self.root.minsize(1050, 700)
         main = ttk.Frame(self.root, padding=8)
         main.pack(fill="both", expand=True)
         main.columnconfigure(0, weight=1)
@@ -76,8 +83,9 @@ class FlowGuardApp:
         self.preview.bind("<B1-Motion>", self._mouse_move)
         self.preview.bind("<ButtonRelease-1>", self._mouse_up)
 
-        panel = ttk.Frame(main, width=300)
-        panel.grid(row=0, column=1, sticky="ns")
+        panel = ttk.Frame(main, width=360)
+        panel.grid(row=0, column=1, sticky="nsew")
+        panel.grid_propagate(False)
 
         status_box = ttk.LabelFrame(panel, text="FLOW MONITOR", padding=10)
         status_box.pack(fill="x", pady=(0, 8))
@@ -95,7 +103,29 @@ class FlowGuardApp:
         self.status_label = tk.Label(status_box, textvariable=self.status_var, font=("Arial", 13, "bold"))
         self.status_label.pack(fill="x", pady=(8, 0))
 
-        setup = ttk.LabelFrame(panel, text="1. 게이지 위치", padding=8)
+        settings_host = ttk.Frame(panel)
+        settings_host.pack(fill="both", expand=True)
+        settings_canvas = tk.Canvas(settings_host, highlightthickness=0, width=340)
+        settings_scrollbar = ttk.Scrollbar(settings_host, orient="vertical", command=settings_canvas.yview)
+        settings_canvas.configure(yscrollcommand=settings_scrollbar.set)
+        settings_scrollbar.pack(side="right", fill="y")
+        settings_canvas.pack(side="left", fill="both", expand=True)
+        settings = ttk.Frame(settings_canvas)
+        settings_window = settings_canvas.create_window((0, 0), window=settings, anchor="nw")
+        settings.bind(
+            "<Configure>",
+            lambda _event: settings_canvas.configure(scrollregion=settings_canvas.bbox("all")),
+        )
+        settings_canvas.bind(
+            "<Configure>",
+            lambda event: settings_canvas.itemconfigure(settings_window, width=event.width),
+        )
+        settings_canvas.bind_all(
+            "<MouseWheel>",
+            lambda event: settings_canvas.yview_scroll(int(-event.delta / 120), "units"),
+        )
+
+        setup = ttk.LabelFrame(settings, text="1. 게이지 위치", padding=8)
         setup.pack(fill="x", pady=(0, 8))
         ttk.Button(setup, text="원근 보정 4점 지정 (권장)", command=self._start_perspective).pack(fill="x")
         ttk.Button(setup, text="원근 보정 해제", command=self._clear_perspective).pack(fill="x", pady=(4, 0))
@@ -107,8 +137,8 @@ class FlowGuardApp:
         ttk.Checkbutton(setup, text="자동 초점", variable=self.autofocus_var).pack(anchor="w")
         ttk.Checkbutton(setup, text="자동 노출", variable=self.auto_exposure_var).pack(anchor="w")
 
-        calibration = ttk.LabelFrame(panel, text="2. 각도–유량 보정", padding=8)
-        calibration.pack(fill="both", expand=True, pady=(0, 8))
+        calibration = ttk.LabelFrame(settings, text="2. 각도–유량 보정", padding=8)
+        calibration.pack(fill="x", pady=(0, 8))
         row = ttk.Frame(calibration)
         row.pack(fill="x")
         ttk.Label(row, text="현재 위치 유량").pack(side="left")
@@ -131,7 +161,7 @@ class FlowGuardApp:
         ).pack(side="right")
         self._refresh_points()
 
-        alarm_box = ttk.LabelFrame(panel, text="3. 경보/Arduino", padding=8)
+        alarm_box = ttk.LabelFrame(settings, text="3. 경보/Arduino", padding=8)
         alarm_box.pack(fill="x", pady=(0, 8))
         self.threshold_var = tk.StringVar(value=str(self.config.alarm.low_flow_threshold))
         self.hysteresis_var = tk.StringVar(value=str(self.config.alarm.hysteresis))
@@ -150,13 +180,18 @@ class FlowGuardApp:
             ttk.Entry(line, textvariable=variable, width=11).pack(side="right")
         ttk.Checkbutton(alarm_box, text="Arduino/ESP32 출력 사용", variable=self.arduino_enabled_var).pack(anchor="w")
 
-        web_box = ttk.LabelFrame(panel, text="4. 웹 전송", padding=8)
+        web_box = ttk.LabelFrame(settings, text="4. 웹 전송", padding=8)
         web_box.pack(fill="x", pady=(0, 8))
         self.remote_enabled_var = tk.BooleanVar(value=self.config.remote.enabled)
         self.remote_url_var = tk.StringVar(value=self.config.remote.function_url)
         self.remote_device_var = tk.StringVar(value=self.config.remote.device_id)
         ttk.Checkbutton(web_box, text="주기적으로 웹으로 전송", variable=self.remote_enabled_var).pack(anchor="w")
-        interval_label = "1분 (MVP 시연)" if self.config.remote.upload_interval_sec < 3600 else "1시간 (운영)"
+        if self.config.remote.upload_interval_sec <= 10:
+            interval_label = "10초 (빠른 감시)"
+        elif self.config.remote.upload_interval_sec < 3600:
+            interval_label = "1분 (MVP 시연)"
+        else:
+            interval_label = "1시간 (운영)"
         self.remote_interval_var = tk.StringVar(value=interval_label)
         interval_row = ttk.Frame(web_box)
         interval_row.pack(fill="x", pady=1)
@@ -164,7 +199,7 @@ class FlowGuardApp:
         ttk.Combobox(
             interval_row,
             textvariable=self.remote_interval_var,
-            values=("1분 (MVP 시연)", "1시간 (운영)"),
+            values=("10초 (빠른 감시)", "1분 (MVP 시연)", "1시간 (운영)"),
             state="readonly",
             width=15,
         ).pack(side="right")
@@ -177,57 +212,77 @@ class FlowGuardApp:
             ttk.Label(line, text=label).pack(side="left")
             ttk.Entry(line, textvariable=variable, width=24).pack(side="right")
         ttk.Label(web_box, text=f"인증 토큰: 환경변수 {self.config.remote.token_env_var}").pack(anchor="w", pady=(3, 0))
-        ttk.Button(panel, text="설정 저장 및 적용", command=self.save_and_apply).pack(fill="x")
+        ttk.Button(settings, text="설정 저장 및 적용", command=self.save_and_apply).pack(fill="x")
 
     def start_camera(self) -> None:
         self._stop_camera()
-        # Let OpenCV use the Windows default backend (normally Media Foundation).
-        # Forcing DirectShow caused visible brightness waves/tearing with some
-        # UVC cameras and recent OpenCV builds, while the same camera was stable
-        # in applications opening it through the default backend.
-        self.capture = cv2.VideoCapture(self.config.camera.index)
-        if self.config.camera.use_mjpeg:
-            self.capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.camera.width)
-        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.camera.height)
-        self.capture.set(cv2.CAP_PROP_FPS, self.config.camera.fps)
-        self.capture.set(cv2.CAP_PROP_BUFFERSIZE, max(1, self.config.camera.buffer_size))
         self.frame_interval_ms = max(1, round(1000.0 / max(1.0, self.config.camera.fps)))
-        self._apply_camera_controls()
-        if self.capture.isOpened():
-            self.capture_stop.clear()
-            self.capture_thread = threading.Thread(
-                target=self._capture_frames,
-                name="camera-capture",
-                daemon=True,
-            )
-            self.capture_thread.start()
+        # A backend open call may outlive the one-second shutdown grace period.
+        # Give every worker its own event so a new start cannot revive an old
+        # camera thread by clearing a shared stop flag.
+        self.capture_stop = threading.Event()
+        stop_event = self.capture_stop
+        self.camera_open = False
+        self.camera_error = None
+        self.capture_thread = threading.Thread(
+            target=self._capture_frames,
+            args=(stop_event,),
+            name="camera-capture",
+            daemon=True,
+        )
+        self.capture_thread.start()
 
-    def _capture_frames(self) -> None:
-        """Continuously drain DirectShow and retain only the newest complete frame.
+    def _capture_frames(self, stop_event: threading.Event) -> None:
+        """Open and drain the camera without ever blocking Tk's UI thread.
 
-        Gauge analysis can occasionally take longer than one camera period. Reading
-        on the Tk thread allowed compressed frames to accumulate in the driver,
-        which presents as torn/corrupted video on a number of MJPEG webcams.
+        On Windows, opening a UVC camera and applying its properties can take
+        several seconds. Keeping all backend calls on this worker prevents Windows
+        from marking the application as not responding during startup.
         """
-        capture = self.capture
-        while capture is not None and not self.capture_stop.is_set():
-            ok, frame = capture.read()
-            if not ok or frame is None or frame.size == 0:
-                time.sleep(0.01)
-                continue
-            # Do not retain memory owned/reused by the camera backend.
-            complete_frame = np.ascontiguousarray(frame).copy()
+        capture = None
+        try:
+            # Let OpenCV use the Windows default backend (normally Media
+            # Foundation). DirectShow caused tearing with some UVC cameras.
+            capture = cv2.VideoCapture(self.config.camera.index)
+            if stop_event.is_set():
+                return
+            if not capture.isOpened():
+                self.camera_error = f"카메라 {self.config.camera.index}을 열 수 없습니다."
+                return
+            camera = self.config.camera
+            if camera.use_mjpeg:
+                capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, camera.width)
+            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, camera.height)
+            capture.set(cv2.CAP_PROP_FPS, camera.fps)
+            capture.set(cv2.CAP_PROP_BUFFERSIZE, max(1, camera.buffer_size))
+            self._apply_camera_controls(capture)
             with self.capture_lock:
-                self.captured_frame = complete_frame
-                self.captured_frame_number += 1
-                self.last_capture_time = time.monotonic()
+                self.capture = capture
+                self.camera_open = True
+            while not stop_event.is_set():
+                ok, frame = capture.read()
+                if not ok or frame is None or frame.size == 0:
+                    time.sleep(0.01)
+                    continue
+                # Do not retain memory owned/reused by the camera backend.
+                complete_frame = np.ascontiguousarray(frame).copy()
+                with self.capture_lock:
+                    self.captured_frame = complete_frame
+                    self.captured_frame_number += 1
+                    self.last_capture_time = time.monotonic()
+        except Exception as exc:
+            self.camera_error = str(exc)
+        finally:
+            if capture is not None:
+                capture.release()
+            with self.capture_lock:
+                if self.capture is capture:
+                    self.capture = None
+                self.camera_open = False
 
     def _stop_camera(self) -> None:
         self.capture_stop.set()
-        capture = self.capture
-        if capture is not None:
-            capture.release()
         thread = self.capture_thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=1.0)
@@ -238,20 +293,22 @@ class FlowGuardApp:
             self.captured_frame_number = 0
             self.processed_frame_number = 0
             self.last_capture_time = 0.0
+            self.camera_open = False
 
-    def _apply_camera_controls(self) -> None:
-        if self.capture is None:
+    def _apply_camera_controls(self, capture: cv2.VideoCapture | None = None) -> None:
+        capture = capture or self.capture
+        if capture is None:
             return
         camera = self.config.camera
         if camera.autofocus is not None:
-            self.capture.set(cv2.CAP_PROP_AUTOFOCUS, 1 if camera.autofocus else 0)
+            capture.set(cv2.CAP_PROP_AUTOFOCUS, 1 if camera.autofocus else 0)
         if camera.focus is not None:
-            self.capture.set(cv2.CAP_PROP_FOCUS, camera.focus)
+            capture.set(cv2.CAP_PROP_FOCUS, camera.focus)
         if camera.auto_exposure is not None:
             # DirectShow uses 0.75 for auto and 0.25 for manual exposure.
-            self.capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if camera.auto_exposure else 0.25)
+            capture.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if camera.auto_exposure else 0.25)
         if camera.exposure is not None:
-            self.capture.set(cv2.CAP_PROP_EXPOSURE, camera.exposure)
+            capture.set(cv2.CAP_PROP_EXPOSURE, camera.exposure)
 
     def _tick(self) -> None:
         started = time.perf_counter()
@@ -269,8 +326,8 @@ class FlowGuardApp:
             self.root.after(delay_ms, self._tick)
 
     def _process_frame(self) -> None:
-        if self.capture is None or not self.capture.isOpened():
-            self.status_var.set("CAMERA CONNECTION ERROR")
+        if not self.camera_open:
+            self.status_var.set(f"CAMERA CONNECTION ERROR: {self.camera_error}" if self.camera_error else "카메라 연결 중...")
             self._apply_alarm(None)
             return
         with self.capture_lock:
@@ -596,9 +653,12 @@ class FlowGuardApp:
         self.config.remote.enabled = self.remote_enabled_var.get()
         self.config.remote.function_url = self.remote_url_var.get().strip()
         self.config.remote.device_id = self.remote_device_var.get().strip()
-        self.config.remote.upload_interval_sec = (
-            60.0 if self.remote_interval_var.get().startswith("1분") else 3600.0
-        )
+        interval_seconds = {
+            "10초 (빠른 감시)": 10.0,
+            "1분 (MVP 시연)": 60.0,
+            "1시간 (운영)": 3600.0,
+        }
+        self.config.remote.upload_interval_sec = interval_seconds[self.remote_interval_var.get()]
         self._prepare_calibration(show_error=True)
         if len(self.config.calibration.points) >= 2 and self.calibration is None:
             return
@@ -608,7 +668,9 @@ class FlowGuardApp:
         self.remote.close()
         self.remote = PeriodicFlowUploader(self.config.remote)
         self.web_status_var.set(f"Web: {self.remote.status}")
-        self._apply_camera_controls()
+        # Camera backend calls can block for seconds on Windows. Restarting the
+        # worker applies changed controls without freezing the settings dialog.
+        self.start_camera()
         try:
             self.store.save(self.config)
         except OSError as exc:

@@ -6,6 +6,21 @@ import sys
 from pathlib import Path
 
 
+def _load_windows_user_secret(name: str) -> None:
+    """Load a persisted user environment variable without storing it in files."""
+    if os.name != "nt" or os.environ.get(name):
+        return
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            value, _value_type = winreg.QueryValueEx(key, name)
+    except (FileNotFoundError, OSError):
+        return
+    if isinstance(value, str) and value.strip():
+        os.environ[name] = value
+
+
 def _restart_in_project_venv() -> None:
     """Use the repository virtual environment even when run with global Python."""
     if os.name != "nt":
@@ -18,6 +33,7 @@ def _restart_in_project_venv() -> None:
     raise SystemExit(subprocess.call([str(project_python), *sys.argv]))
 
 
+_load_windows_user_secret("FLOW_DEVICE_TOKEN")
 _restart_in_project_venv()
 
 from analog_flow_guard.app import main  # noqa: E402

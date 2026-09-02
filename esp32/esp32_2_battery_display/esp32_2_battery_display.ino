@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include <cstring>
 #include "ESP32_NOW.h"
+#include <LiquidCrystal_I2C.h>
 #include "WiFi.h"
+#include "Wire.h"
 
 #include "config.h"
 #include "protocol.h"
@@ -11,8 +13,19 @@ portMUX_TYPE packetMux = portMUX_INITIALIZER_UNLOCKED;
 StatusPacket pendingPacket = {};
 DeviceState receivedState = DeviceState::PcLinkError;
 bool hasRadioPacket = false;
-bool alarmOutputOn = false;
 unsigned long lastPacketMs = 0;
+
+LiquidCrystal_I2C display(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS);
+
+enum class DisplayState : uint8_t {
+  GasNormal,
+  GasLow,
+  PcLinkError,
+  RadioLinkError,
+};
+
+DisplayState displayedState = DisplayState::RadioLinkError;
+bool displayInitialized = false;
 
 const char *stateName(DeviceState state) {
   switch (state) {
@@ -26,11 +39,40 @@ const char *stateName(DeviceState state) {
   return "UNKNOWN";
 }
 
-void setAlarmOutputs(bool on) {
-  alarmOutputOn = on;
-  digitalWrite(ALARM_LED_PIN, on ? HIGH : LOW);
-  const uint8_t buzzerOn = BUZZER_ACTIVE_HIGH ? HIGH : LOW;
-  digitalWrite(BUZZER_PIN, on ? buzzerOn : !buzzerOn);
+void writeLine(uint8_t row, const char *text) {
+  display.setCursor(0, row);
+  uint8_t column = 0;
+  while (text[column] != '\0' && column < LCD_COLUMNS) {
+    display.print(text[column]);
+    ++column;
+  }
+  while (column < LCD_COLUMNS) {
+    display.print(' ');
+    ++column;
+  }
+}
+
+void showState(DisplayState state) {
+  switch (state) {
+    case DisplayState::GasNormal:
+      writeLine(0, "GAS STATUS");
+      writeLine(1, "NORMAL");
+      break;
+    case DisplayState::GasLow:
+      writeLine(0, "GAS STATUS");
+      writeLine(1, "LOW");
+      break;
+    case DisplayState::PcLinkError:
+      writeLine(0, "PC LINK");
+      writeLine(1, "ERROR");
+      break;
+    case DisplayState::RadioLinkError:
+      writeLine(0, "RADIO LINK");
+      writeLine(1, "ERROR");
+      break;
+  }
+
+  displayedState = state;
 }
 
 bool isValidPacket(const uint8_t *data, int len, StatusPacket &packet) {
@@ -67,9 +109,12 @@ void onMessage(const esp_now_recv_info_t *info, const uint8_t *data, int len,
 
 void setup() {
   Serial.begin(115200);
-  pinMode(ALARM_LED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  setAlarmOutputs(false);
+
+  Wire.begin(LCD_SDA_PIN, LCD_SCL_PIN);
+  display.init();
+  display.backlight();
+  displayInitialized = true;
+  showState(DisplayState::RadioLinkError);
 
   WiFi.mode(WIFI_STA);
   WiFi.setChannel(ESPNOW_CHANNEL);
@@ -87,7 +132,7 @@ void setup() {
   }
 
   ESP_NOW.onNewPeer(onMessage, nullptr);
-  Serial.println("Unit 2 ready. Alarm outputs are OFF until a problem arrives.");
+  Serial.println("Unit 2 ready. Waiting for gas status from Unit 1.");
 }
 
 void loop() {
@@ -114,13 +159,19 @@ void loop() {
 
   const bool radioTimedOut =
       !hasRadioPacket || now - lastPacketMs >= RADIO_TIMEOUT_MS;
-  const bool alarmActive =
-      radioTimedOut || receivedState != DeviceState::Normal;
+  DisplayState nextDisplayState;
+  if (radioTimedOut) {
+    nextDisplayState = DisplayState::RadioLinkError;
+  } else if (receivedState == DeviceState::Normal) {
+    nextDisplayState = DisplayState::GasNormal;
+  } else if (receivedState == DeviceState::Problem) {
+    nextDisplayState = DisplayState::GasLow;
+  } else {
+    nextDisplayState = DisplayState::PcLinkError;
+  }
 
-  // Keep the alarm indicator steady. Repeated blinking is intentionally
-  // avoided so that NORMAL and PROBLEM are shown as stable states.
-  if (alarmOutputOn != alarmActive) {
-    setAlarmOutputs(alarmActive);
+  if (!displayInitialized || displayedState != nextDisplayState) {
+    showState(nextDisplayState);
   }
 
   delay(1);

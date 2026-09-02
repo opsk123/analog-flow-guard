@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 
-// Unit 2 alarm outputs. Use a current-limiting resistor with the LED.
-constexpr uint8_t ALARM_LED_PIN = 27;
-constexpr uint8_t BUZZER_PIN = 25;
-
-// Set false when using a buzzer module that sounds on LOW.
-constexpr bool BUZZER_ACTIVE_HIGH = true;
+// 1602A LCD with a 4-pin PCF8574 I2C backpack.
+constexpr uint8_t LCD_SDA_PIN = 21;
+constexpr uint8_t LCD_SCL_PIN = 22;
+constexpr uint8_t LCD_I2C_ADDRESS = 0x3F;
+constexpr uint8_t LCD_COLUMNS = 16;
+constexpr uint8_t LCD_ROWS = 2;
 
 // Must match the ESP-NOW channel configured on Unit 1.
 constexpr uint8_t ESPNOW_CHANNEL = 6;

@@ -54,7 +54,12 @@ class PeriodicFlowUploader:
         self._last_success_at: float | None = None
         self._next_retry_at = 0.0
         self._pending_payload: Payload | None = None
-        self._status = "사용 안 함" if not config.enabled else "측정값 대기"
+        if not config.enabled:
+            self._status = "사용 안 함"
+        elif not token_resolver(config.token_env_var):
+            self._status = f"환경변수 {config.token_env_var} 필요"
+        else:
+            self._status = "측정값 대기"
 
     @property
     def status(self) -> str:
