@@ -4,7 +4,9 @@ window.FLOW_DASHBOARD_CONFIG = {
   supabaseUrl: "https://ygnynrpcismszflhysqr.supabase.co",
   publishableKey: "sb_publishable_y6jEpwQUMjUoZGuVjOWH7w_1dYyHVpV",
   deviceId: "FLOW-01",
+  // Multiple camera PCs: set deviceIds: ["FLOW-01", "FLOW-02"].
+  // Gauge thresholds and forecasts are read from Supabase per gauge.
   lowFlowThreshold: 0.15,
-  expectedIntervalSec: 60,
-  refreshIntervalSec: 30,
+  expectedIntervalSec: 10,
+  refreshIntervalSec: 10,
 };

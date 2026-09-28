@@ -3,38 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>Flow Guard Dashboard</title>
-  <link rel="stylesheet" href="styles.css?v=2">
+  <meta name="color-scheme" content="light">
+  <title>Flow Guard · 관측실</title>
+  <link rel="stylesheet" href="styles.css?v=dual-3">
 </head>
 <body>
-  <main class="shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">ANALOG FLOW GUARD</p>
-        <h1>유량 모니터</h1>
-        <p id="device-label" class="subtitle">장치를 불러오는 중</p>
-      </div>
-      <div id="connection-badge" class="badge badge-waiting">설정 확인 중</div>
-    </header>
-    <section class="summary-grid" aria-label="현재 상태">
-      <article class="card current-card"><p class="label">현재 유량</p><div class="current-reading"><strong id="current-flow">--</strong><span>L/min</span></div><p id="reading-status" class="reading-status">데이터를 기다리고 있습니다.</p></article>
-      <article class="card"><p class="label">저유량 기준</p><strong id="threshold-value" class="secondary-value">-- L/min</strong></article>
-      <article class="card"><p class="label">마지막 측정</p><strong id="last-measured" class="secondary-value">--</strong><p id="last-age" class="muted">--</p></article>
-      <article class="card"><p class="label">서버 수신</p><strong id="last-received" class="secondary-value">--</strong><p id="ingest-delay" class="muted">전송 지연 --</p></article>
-      <article class="card"><p class="label">보고 주기</p><strong id="report-interval" class="secondary-value">--</strong><p id="next-expected" class="muted">다음 측정 예상 --</p></article>
-    </section>
-    <section class="card chart-card">
-      <div class="section-heading"><div><p class="label">최근 추이</p><h2>최근 60회 측정</h2></div><button id="refresh-button" type="button">새로고침</button></div>
-      <div class="chart-wrap"><svg id="flow-chart" viewBox="0 0 900 300" role="img" aria-label="최근 유량 그래프"></svg></div>
-    </section>
-    <section class="card records-card">
-      <div class="section-heading"><div><p class="label">측정 기록</p><h2>최근 10회</h2></div></div>
-      <div class="table-wrap"><table><thead><tr><th>측정 시각</th><th>유량</th><th>상태</th></tr></thead><tbody id="records-body"><tr><td colspan="3">데이터를 불러오는 중입니다.</td></tr></tbody></table></div>
-    </section>
-    <p id="error-detail" class="error-detail" hidden></p>
-  </main>
-  <script src="config.js?v=1"></script>
-  <script src="app.js?v=4"></script>
+  <a class="skip-link" href="#workspace">본문으로 이동</a>
+  <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">F</span> FLOW GUARD <span class="brand-sub">관측실</span></a><span class="top-note">설비 모니터링 / 유량</span><div id="connection-badge" class="badge badge-waiting">연결 확인 중</div></header>
+  <div id="demo-banner" class="demo-banner" hidden>미리보기 · 화면 구성을 위한 예시 데이터입니다. 실제 측정이나 경보에 사용하지 않습니다.</div>
+  <div class="layout">
+    <aside class="sidebar" aria-label="관찰 유량계">
+      <div class="section-heading"><h2>관찰 대상</h2><span class="section-number">01</span></div>
+      <p class="muted">카메라별 유량계를 선택하세요.</p>
+      <label class="select-label" for="gauge-select">유량계 선택</label><select id="gauge-select" aria-label="상세 유량계"></select>
+      <div id="gauge-cards" class="gauge-grid"></div>
+      <div class="sidebar-note"><span class="small-label">경보 기준</span><p>관찰 중인 유량계 하나라도 부족하면 전체 경보가 켜집니다.</p></div>
+    </aside>
+    <main id="workspace" class="workspace">
+      <header class="page-heading"><div><p class="eyebrow">OPERATIONS / LIVE FLOW</p><h1>유량 관측</h1><p id="device-label" class="subtitle">장치를 불러오는 중</p></div><button id="refresh-button" type="button">측정 새로고침 <span aria-hidden="true">↻</span></button></header>
+      <p id="overall-status" class="status-strip" role="status" aria-live="polite">데이터를 기다리고 있습니다.</p>
+      <p id="error-detail" class="error-detail" hidden></p>
+      <section class="individual-section" aria-labelledby="individual-title">
+        <div class="section-heading"><div><p class="small-label">GAUGE TRACKING</p><h2 id="individual-title">유량계별 기록과 경고선 도달 예상</h2></div></div>
+        <p class="muted">각 유량계의 실측 기록을 따로 저장·분석합니다. 실선은 측정, 점선은 향후 60분 추세, 경고선은 저유량 기준입니다. 초기화 후 최소 11개의 연속된 분 단위 표본이 쌓여야 예측합니다.</p>
+        <div id="individual-trends" class="individual-trends"></div>
+      </section>
+      <section class="metrics" aria-label="선택한 유량계 현재 상태">
+        <article><p class="small-label">현재 유량</p><div class="current-reading"><strong id="current-flow">--</strong><span>L/min</span></div><p id="reading-status" class="muted">측정 대기</p></article>
+        <article><p class="small-label">저유량 기준</p><strong id="threshold-value" class="metric-value">--</strong><p class="muted">유량계별 설정값</p></article>
+        <article class="forecast-metric"><p class="small-label">앞으로 1시간</p><strong id="forecast-value" class="metric-value">데이터 수집 중</strong><p id="forecast-detail" class="muted">유량 변화 추세를 확인합니다.</p></article>
+      </section>
+      <section class="chart-section" aria-labelledby="chart-title">
+        <div class="section-heading"><div><p class="small-label">TREND</p><h2 id="chart-title">측정과 예상 추이</h2></div><div class="legend"><span><i class="legend-actual"></i>측정</span><span><i class="legend-forecast"></i>예측</span><span><i class="legend-threshold"></i>저유량 기준</span></div></div>
+        <div class="chart-wrap"><svg id="flow-chart" viewBox="0 0 900 300" role="img" aria-label="최근 유량과 향후 60분 예상 추이"></svg></div>
+        <p class="chart-caption">최근 60분의 기록 · 점선은 현재 추세가 이어질 때의 추정값입니다.</p>
+      </section>
+      <section class="report-section" aria-labelledby="report-title">
+        <div class="section-heading"><div><p class="small-label">OPERATING NOTE</p><h2 id="report-title">운영 리포트</h2></div><div class="report-actions"><button id="download-report" type="button" disabled>저장</button><button id="generate-report" class="primary-button" type="button">리포트 작성</button></div></div>
+        <div class="report-meta"><span id="report-source">통계 요약</span><span id="report-time">현재 관찰 대상 전체 기준</span></div>
+        <p id="report-notice" class="muted" role="status" aria-live="polite">측정 기록을 불러온 뒤 요약을 제공합니다.</p>
+        <div class="report-content"><div><h3>관측 요약</h3><p id="report-summary">아직 분석할 측정값이 없습니다.</p><ul id="report-findings"></ul></div><div class="report-next"><h3>확인할 사항</h3><ul id="report-actions"></ul></div></div>
+        <p id="report-limitations" class="report-footnote">이 리포트는 순간 유량(L/min)을 분석합니다. 가스 잔량이나 고갈 시점을 의미하지 않습니다.</p>
+      </section>
+      <section class="records-section" aria-labelledby="records-title"><div class="section-heading"><div><p class="small-label">LOG</p><h2 id="records-title">최근 측정 기록</h2></div><span class="muted">최근 10회</span></div><div class="table-wrap"><table><thead><tr><th scope="col">측정 시각</th><th scope="col">유량 / L/min</th><th scope="col">판독 상태</th></tr></thead><tbody id="records-body"><tr><td colspan="3">측정 기록을 불러오는 중입니다.</td></tr></tbody></table></div></section>
+      <footer class="telemetry"><div>마지막 측정 <strong id="last-measured">--</strong> <span id="last-age">--</span></div><div>서버 수신 <strong id="last-received">--</strong> <span id="ingest-delay">--</span></div><div>보고 주기 <strong id="report-interval">--</strong> <span id="next-expected">--</span></div></footer>
+    </main>
+  </div>
+  <script src="config.js?v=3"></script>
+  <script src="report-core.js?v=1"></script>
+  <script src="report-ui.js?v=1"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
